@@ -1,0 +1,81 @@
+package com.example.streetlightmonitor;
+
+import android.os.Bundle;
+import android.os.Handler;
+import android.widget.TextView;
+import androidx.appcompat.app.AppCompatActivity;
+
+import org.json.JSONObject;
+
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.URL;
+
+public class MainActivity extends AppCompatActivity {
+
+    private TextView ldrValueText, statusText;
+    private Handler handler = new Handler();
+
+    // Replace these with your actual ThingSpeak Channel ID and Read API Key
+    private static final String CHANNEL_ID = "YOUR_CHANNEL_ID";
+    private static final String READ_API_KEY = "YOUR_READ_API_KEY";
+
+    private static final String THINGSPEAK_URL =
+            "https://api.thingspeak.com/channels/" + CHANNEL_ID + "/feeds/last.json?api_key=" + READ_API_KEY;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
+
+        ldrValueText = findViewById(R.id.ldrValue);
+        statusText = findViewById(R.id.statusValue);
+
+        // Start fetching data repeatedly
+        startRepeatingFetch();
+    }
+
+    private void startRepeatingFetch() {
+        handler.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                fetchData();
+                handler.postDelayed(this, 5000); // repeat every 5 seconds
+            }
+        }, 0);
+    }
+
+    private void fetchData() {
+        new Thread(() -> {
+            try {
+                URL url = new URL(THINGSPEAK_URL);
+                HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+                connection.setRequestMethod("GET");
+
+                BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()));
+                StringBuilder response = new StringBuilder();
+                String line;
+
+                while ((line = reader.readLine()) != null) {
+                    response.append(line);
+                }
+
+                reader.close();
+
+                JSONObject jsonObject = new JSONObject(response.toString());
+
+                String ldrValue = jsonObject.getString("field1");
+                String lightStatus = jsonObject.getString("field2");
+
+                runOnUiThread(() -> {
+                    ldrValueText.setText("LDR Value: " + ldrValue);
+                    statusText.setText("Light Status: " + lightStatus);
+                });
+
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }).start();
+    }
+}
